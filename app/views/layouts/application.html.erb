@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/assets/favicon.ico">
+            
+    <title>Make DB</title>
+
+    <%= stylesheet_link_tag    "application" %>
+    <%= javascript_include_tag "vendor/modernizr" %>
+    <%= csrf_meta_tags %>
+  </head>
+
+  <body>
+    <div id="menu">
+      <nav class="top-bar" data-topbar data-options="is_hover: false">
+        <ul class="title-area">
+		  <!-- Title Area -->
+          <li class="name">
+            <h1><%= link_to (image_tag("/assets/csh.png", :border => 0, :alt => 'CSH Logo', ) + " Create DB Page"), root_path %></h1>
+		  </li>
+		  <li class="toggle-topbar menu-icon"><a href="#"><span>Menu</span></a></li>  
+		</ul>
+        <section class="top-bar-section">
+		  <!-- Left Nav Section -->
+		  <ul class="left">
+		  </ul>
+		  <!-- Right Nav Section -->
+          <ul class="right">
+            <li><%= link_to "Memebers Home", "https://members.csh.rit.edu" %></li>
+            <li><%= link_to "Public Site", "http://.csh.rit.edu" %></li>
+            <li><%= link_to "Webauth Logout", "https://members.csh.rit.edu/logout" %></li>
+		  </ul>
+		</section>
+	  </nav>
+	</div>
+
+    <%= yield %>
+    <%= javascript_include_tag "application" %>
+  </body>
+</html>

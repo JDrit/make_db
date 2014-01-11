@@ -1,0 +1,8 @@
+<% if object.errors.any? %>
+    <div data-alert class="alert-box">
+      <% object.errors.full_messages.each do |msg| %>
+        <%= msg %>, 
+      <% end %>
+      <a href="#" class="close">&times;</a>
+    </div>
+<% end %>
