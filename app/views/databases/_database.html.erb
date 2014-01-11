@@ -1,0 +1,11 @@
+<tr>
+    <td><%= database.name %></td>
+    <td><%= database.username %></td>
+    <% if database.db_type == 1 %>
+        <td>MySQL</td>
+    <% else %>
+        <td>PostgreSQL</td>
+    <% end %>
+    <td><%= @names[database.uid_number] %></td>
+    <td><%= database.created_at.to_s %></td>
+<tr>

@@ -28,6 +28,9 @@
 		  </ul>
 		  <!-- Right Nav Section -->
           <ul class="right">
+            <% if @is_admin %>  
+                <li><%= link_to "Admin Panel", "/admin" %></li>
+            <% end %>
             <li><%= link_to "Memebers Home", "https://members.csh.rit.edu" %></li>
             <li><%= link_to "Public Site", "http://.csh.rit.edu" %></li>
             <li><%= link_to "Webauth Logout", "https://members.csh.rit.edu/logout" %></li>
@@ -35,8 +38,16 @@
 		</section>
 	  </nav>
 	</div>
-
-    <%= yield %>
+    <div id="main" class="row ">
+        <div class="large-12 columns" id="container">
+            <div class="row panel" id="main-header">
+                <h2><%= yield(:title) %></h2>            
+            </div>
+            <div class="row_panel">
+                <%= yield %>
+            </div>
+        </div>
+    </div>
     <%= javascript_include_tag "application" %>
   </body>
 </html>

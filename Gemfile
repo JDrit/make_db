@@ -5,6 +5,9 @@ gem 'rails', '4.0.2'
 gem 'foundation-rails'
 gem 'pg'
 gem 'global'
+gem 'net-ldap'
+gem 'will_paginate'
+gem 'foundation-will_paginate'
 
 # Use sqlite3 as the database for Active Record
 group :development, :test do

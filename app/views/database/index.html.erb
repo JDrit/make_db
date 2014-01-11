@@ -1,62 +1,54 @@
-<div id="main" class="row ">
-    <div class="large-12 columns" id="container">
-        <div class="row panel" id="main-header">
-            <h2>Create Database</h2>
-        </div>
-        <div class="row_panel">
-          <% flash.each do |key, value| %>
-            <%= content_tag(:div, value, class: "alert-box") %>
-          <% end %>
+<% provide(:title, "Create DB") %>
+<% flash.each do |key, value| %>
+<%= content_tag(:div, value, class: "alert-box") %>
+<% end %>
 
-          <%= form_for(@database, :url => "/") do |f| %>
-            <div class="row">
-                <div class="large-6 columns">
-                  <h5>Database</h5>
-                  <%= f.label :name %>
-                  <% if @database.errors[:name] != [] %>
-                    <%= f.text_field :name, placeholder: "Database name", class: "error" %>
-                    <small class="error"><%= @database.errors[:name][0] %></small>
-                  <% else %>
-                    <%= f.text_field :name, placeholder: "Database name" %>
-                  <% end %>
-                  <br>
-                  <br>
-                  <%= f.label :db_type, "Database Type" %>
-                  <%= f.radio_button :db_type, 'pg', :checked => false %> PostgreSQL
-                  <%= f.radio_button :db_type, 'mysql', :checked => true %> mySQL
- 
-                </div>
-                <div class="large-6 columns">
-                  <h5>User Account</h5>
-                  <%= f.label :username %>
-                  <% if @database.errors[:username] != [] %>
-                    <%= f.text_field :username, placeholder: "Username", class: "error" %>
-                    <small class="error"><%= @database.errors[:username][0] %></small>
-                  <% else %>
-                    <%= f.text_field :username, placeholder: "Username" %>
-                  <% end %>
-                    
-                  <%= f.label :password %>
-                  <% if @database.errors[:password] != [] %>
-                    <%= f.password_field :password, placeholder: "Password", class: "error" %>
-                    <small class="error"><%= @database.errors[:password][0] %></small>
-                  <% else %>
-                    <%= f.password_field :password, placeholder: "Password" %>
-                  <% end %>
-                    
-                  <%= f.label :confirm_password, "Confirm Password" %>
-                  <% if @database.errors[:password] != [] %>
-                    <%= f.password_field :confirm_password, placeholder: "Password", class: "error" %>
-                    <small class="error"><%= @database.errors[:password][0] %></small>
-                  <% else %>
-                    <%= f.password_field :confirm_password, placeholder: "Password" %>
-                  <% end %>
+<%= form_for(@database, :url => "/") do |f| %>
+<div class="row">
+    <div class="large-6 columns">
+      <h5>Database</h5>
+      <%= f.label :name %>
+      <% if @database.errors[:name] != [] %>
+        <%= f.text_field :name, placeholder: "Database name", class: "error" %>
+        <small class="error"><%= @database.errors[:name][0] %></small>
+      <% else %>
+        <%= f.text_field :name, placeholder: "Database name" %>
+      <% end %>
+      <br>
+      <br>
+      <%= f.label :db_type, "Database Type" %>
+      <%= f.radio_button :db_type, 'pg', :checked => false %> PostgreSQL
+      <%= f.radio_button :db_type, 'mysql', :checked => true %> mySQL
 
-                </div>
-            </div>
-          <%= f.submit "Submit", class: "button [radius round]" %>
-        <% end %>
-      </div>
-    </div> 
+    </div>
+    <div class="large-6 columns">
+      <h5>User Account</h5>
+      <%= f.label :username %>
+      <% if @database.errors[:username] != [] %>
+        <%= f.text_field :username, placeholder: "Username", class: "error" %>
+        <small class="error"><%= @database.errors[:username][0] %></small>
+      <% else %>
+        <%= f.text_field :username, placeholder: "Username" %>
+      <% end %>
+        
+      <%= f.label :password %>
+      <% if @database.errors[:password] != [] %>
+        <%= f.password_field :password, placeholder: "Password", class: "error" %>
+        <small class="error"><%= @database.errors[:password][0] %></small>
+      <% else %>
+        <%= f.password_field :password, placeholder: "Password" %>
+      <% end %>
+        
+      <%= f.label :confirm_password, "Confirm Password" %>
+      <% if @database.errors[:password] != [] %>
+        <%= f.password_field :confirm_password, placeholder: "Password", class: "error" %>
+        <small class="error"><%= @database.errors[:password][0] %></small>
+      <% else %>
+        <%= f.password_field :confirm_password, placeholder: "Password" %>
+      <% end %>
+
+    </div>
 </div>
+<%= f.submit "Submit", class: "button [radius round]" %>
+<% end %>
 
