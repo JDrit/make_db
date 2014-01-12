@@ -8,9 +8,8 @@ class DatabaseController < ApplicationController
     end
 
     def admin
-        #@databases = Database.all
         @databases = Database.paginate(page: params[:page])
-        @names = get_names Database.all.collect(&:uid_number)
+        @names = get_names (Set.new Database.all.collect(&:uid_number))
         @is_admin = true
     end
 
@@ -38,15 +37,17 @@ class DatabaseController < ApplicationController
     end
 
     private
+        # Only allows RTPs to view the admin page
         def only_rtp
-            if is_admin?
-
-            else
+            if !is_admin?
                 flash[:error] = "Go away, you're not an RTP"
                 redirect_to "/"
             end
         end
-
+        
+        # Validates user input using the model validatators and custom validators
+        # p = the params to validate with
+        # returns true if the data is valid, false otherwise
         def validate? p
             @database = Database.new(name: p[:name], username: p[:username], 
                                  db_type: p[:db_type], 
@@ -63,8 +64,12 @@ class DatabaseController < ApplicationController
             end
         end
 
+        # Connects to ldap to make sure that the given user is an RTP
+        # returns true if the user is an admin, false otherwise
         def is_admin?
             uid = "jeid"
+            result = false
+            #uid = response.headers['WEBAUTH_USER']
             ldap = Net::LDAP.new :host => Global.ldap.host,
                 :port => Global.ldap.port,
                 :encryption => :simple_tls,
@@ -76,16 +81,22 @@ class DatabaseController < ApplicationController
         
             filter = Net::LDAP::Filter.eq("cn", "rtp")
             treebase = "ou=Groups,dc=csh,dc=rit,dc=edu"
-            ldap.search(:base => treebase, :filter => filter) do |entry|
-                entry[:member].each do |dn|
-                    if dn.include? uid
-                        return true
+            ldap.open do |ldap|
+                ldap.search(:base => treebase, :filter => filter, :attributes => ["member"]) do |entry|
+                    entry[:member].each do |dn|
+                        if dn.include? uid
+                            result = true
+                            break
+                        end
                     end
                 end
             end
-            return false
+            return result
         end
-
+    
+        # Gets the actual names from the list of uid numbers to display to the user
+        # uid_numbers = list of uid numbers
+        # returns a hashmap of the keys being uid_numbers and the values being their cn
         def get_names uid_numbers
             names = Hash.new
             ldap = Net::LDAP.new :host => Global.ldap.host,
@@ -105,18 +116,41 @@ class DatabaseController < ApplicationController
                 end
             end
             treebase = "ou=Users,dc=csh,dc=rit,dc=edu"
-            puts filter
-            ldap.search(:base => treebase, :filter => filter) do  |entry|
-                names[entry.uidNumber[0].to_i] = entry.cn[0]
+            ldap.open do |ldap|
+                ldap.search(:base => treebase, :filter => filter, :attributes => ["uidNumber", "cn"]) do  |entry|
+                    names[entry.uidNumber[0].to_i] = entry.cn[0]
+                end
             end
-            puts names
             return names
         end
 
+        # gets the uid number for a given user from their username
+        # uid = the user's username
+        # returns the uid number for the given user
+        def get_uid_number(uid)
+            result = nil
+            ldap = Net::LDAP.new :host => Global.ldap.host,
+                :port => Global.ldap.port,
+                :encryption => :simple_tls,
+                :auth => {
+                    :method => :simple,
+                    :username => Global.ldap.username,
+                    :password => Global.ldap.password
+                }
+            treebase = "ou=Users,dc=csh,dc=rit,dc=edu"
+            filter = Net::LDAP::Filter.eq("uid", uid)
+            ldap.open do |ldap|
+                result = ldap.search(:base => treebase, :filter => filter, :attributes => ["uidNumber"])[0]
+            end
+            return result.uidNumber[0].to_i
+        end
+
+        # returns the params of the new database
         def db_params
             p = params.require(:database)
             puts p
-            p[:uid_number] = 10385
+            p[:uid_number] = get_uid_number('jd')
+            #p[:uid_number] = get_uid_number(response.headers['WEBAUTH_USER'])
             if p[:db_type] == "mysql"
                 p[:db_type] = 1
             elsif p[:db_type] == "pg"
@@ -127,6 +161,10 @@ class DatabaseController < ApplicationController
             return p
         end
 
+        # Creates a postgreSQL database and user
+        # params = the params for the new database
+        # returns true if the database and user was created successfully,
+        #   an error message if there was a problem
         def create_psql params
             return_val = true
             conn = PGconn.connect(:host => Global.db_auth.psql.host, 
@@ -150,7 +188,6 @@ class DatabaseController < ApplicationController
                 conn.exec("CREATE USER #{params[:username]} WITH PASSWORD '#{params[:password]}'")
                 conn.exec("CREATE DATABASE #{params[:name]} OWNER #{params[:username]}")
             end
-            conn.close
             return return_val
         end
 end
