@@ -8,7 +8,11 @@
         <% if @databases.length == 0 %>
             <em>No databases have been created yet</em>
         <% else %>
-            <%= foundation_paginate @databases %>
+            <div class="row">
+                <div class="large-6 large-centered columns">
+                    <%= foundation_paginate @databases %>
+                </div>
+            </div>
             <table>
                 <thead>
                     <tr>

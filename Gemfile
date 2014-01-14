@@ -8,11 +8,17 @@ gem 'global'
 gem 'net-ldap'
 gem 'will_paginate'
 gem 'foundation-will_paginate'
+gem 'mysql2'
 
 # Use sqlite3 as the database for Active Record
 group :development, :test do
     gem 'sqlite3'
     gem 'rspec-rails'
+    gem 'guard-rspec'
+    gem 'spork-rails'
+    gem 'guard-spork'
+    gem 'childprocess'
+    gem 'faker'
 end
 
 group :test do

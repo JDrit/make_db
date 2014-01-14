@@ -2,21 +2,26 @@ require 'pg'
 class DatabaseController < ApplicationController
     before_action :only_rtp, only: [:admin]
 
+
+
     def index
         @database = Database.new
         @is_admin = is_admin?
     end
 
     def admin
+        if !(is_number? params[:page]) || params[:page].to_i <= 0
+            params[:page] = 1
+        end
         @databases = Database.paginate(page: params[:page])
-        @names = get_names (Set.new Database.all.collect(&:uid_number))
+        @names = get_names (Set.new @databases.collect(&:uid_number))
         @is_admin = true
     end
 
     def create
         p = db_params 
+        puts p
         if validate? p
-            puts p
             if p[:db_type] == 1
                 result = create_mysql p
             else
@@ -31,12 +36,18 @@ class DatabaseController < ApplicationController
                 redirect_to '/'
             end
         else
+            puts "FALSE"
             @is_admin = is_admin?
             render 'index'
         end
     end
 
     private
+
+        def is_number?(i)
+            true if Integer(i) rescue false
+        end
+    
         # Only allows RTPs to view the admin page
         def only_rtp
             if !is_admin?
@@ -53,11 +64,16 @@ class DatabaseController < ApplicationController
                                  db_type: p[:db_type], 
                                  uid_number: p[:uid_number])
             valid = @database.valid?
+            puts "TEST"
+            puts p[:password].match(/^[a-zA-Z0-9]+$/)
             if p[:password].empty? || p[:confirm_password].empty?
                 @database.errors.add(:password, "cannot be empty")
                 return false
             elsif p[:password] != p[:confirm_password]
                 @database.errors.add(:passwords, " need to match")
+                return false
+            elsif p[:password].match(/^[a-zA-Z0-9]+$/) == nil
+                @database.errors.add(:password, "Can only be alphanumberic")
                 return false
             else
                 return valid
@@ -99,6 +115,9 @@ class DatabaseController < ApplicationController
         # returns a hashmap of the keys being uid_numbers and the values being their cn
         def get_names uid_numbers
             names = Hash.new
+            if uid_numbers.length == 0
+                return names
+            end
             ldap = Net::LDAP.new :host => Global.ldap.host,
                 :port => Global.ldap.port,
                 :encryption => :simple_tls,
@@ -107,17 +126,14 @@ class DatabaseController < ApplicationController
                     :username => Global.ldap.username,
                     :password => Global.ldap.password
                 }
-            filter = nil
-            uid_numbers.each do |num|
-                if filter == nil
-                    filter = Net::LDAP::Filter.eq("uidNumber", num.to_s)
-                else
-                    filter = Net::LDAP::Filter.intersect(filter, Net::LDAP::Filter.eq("uidNumber", num.to_s))
-                end
-            end
+            filter = "(|"
+            uid_numbers.each { |num| filter += "(uidNumber=#{num})" }
+            filter += ")"
+            
             treebase = "ou=Users,dc=csh,dc=rit,dc=edu"
+            attributes = ["uidNumber", "cn"]
             ldap.open do |ldap|
-                ldap.search(:base => treebase, :filter => filter, :attributes => ["uidNumber", "cn"]) do  |entry|
+                ldap.search(:base => treebase, :filter => filter, :attributes => attributes) do  |entry|
                     names[entry.uidNumber[0].to_i] = entry.cn[0]
                 end
             end
@@ -140,7 +156,8 @@ class DatabaseController < ApplicationController
             treebase = "ou=Users,dc=csh,dc=rit,dc=edu"
             filter = Net::LDAP::Filter.eq("uid", uid)
             ldap.open do |ldap|
-                result = ldap.search(:base => treebase, :filter => filter, :attributes => ["uidNumber"])[0]
+                result = ldap.search(:base => treebase, :filter => filter, 
+                                     :attributes => ["uidNumber"])[0]
             end
             return result.uidNumber[0].to_i
         end
@@ -148,7 +165,6 @@ class DatabaseController < ApplicationController
         # returns the params of the new database
         def db_params
             p = params.require(:database)
-            puts p
             p[:uid_number] = get_uid_number('jd')
             #p[:uid_number] = get_uid_number(response.headers['WEBAUTH_USER'])
             if p[:db_type] == "mysql"
@@ -188,6 +204,38 @@ class DatabaseController < ApplicationController
                 conn.exec("CREATE USER #{params[:username]} WITH PASSWORD '#{params[:password]}'")
                 conn.exec("CREATE DATABASE #{params[:name]} OWNER #{params[:username]}")
             end
+            return return_val
+        end
+
+        # Creates a mySQL database for the given user
+        # It checks to make sure that the username and database name have not
+        # be taken and then creates both and deals with permission
+        # params = the hash of the configs for the new database
+        # returns true if the database was created successfully, an error 
+        # message otherwise
+        def create_mysql params
+            return_val = true
+            conn = Mysql2::Client.new(:host => Global.db_auth.mysql.host,
+                                       :username => Global.db_auth.mysql.username,
+                                       :password => Global.db_auth.mysql.password)
+            result = conn.query("SELECT User FROM mysql.user where User = '#{params[:username]}'").to_a
+            if result.length != 0
+                return_val = "Username is already in use"
+            end
+            result = conn.query("SHOW DATABASES like '#{params[:name]}'").to_a
+            if result.length != 0
+                if return_val.is_a? String
+                    return_val += " and the database name is already in use"
+                else
+                    return_val = "The database name is already in use"
+                end
+            end
+
+            if !(return_val.is_a? String)
+                conn.query("CREATE DATABASE #{params[:name]}");
+                conn.query("GRANT ALL PRIVILEGES ON #{params[:name]}.* TO '#{params[:username]}' IDENTIFIED BY '#{params[:password]}'")
+            end
+            conn.close
             return return_val
         end
 end

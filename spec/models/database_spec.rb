@@ -33,12 +33,12 @@ describe Database do
     end
 
     describe "when name is too long" do
-        before { @database.name = "a" * 256 }
+        before { @database.name = "a" * 17 }
         it { should_not be_valid }
     end
 
     describe "when username is too long" do
-        before { @database.username = "a" * 256 }
+        before { @database.username = "a" * 17 }
         it { should_not be_valid }
     end
 
