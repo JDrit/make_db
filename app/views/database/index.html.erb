@@ -1,7 +1,4 @@
 <% provide(:title, "Make DB") %>
-<% flash.each do |key, value| %>
-<%= content_tag(:div, value, class: "alert-box") %>
-<% end %>
 
 <%= form_for(@database, :url => "/") do |f| %>
 <div class="row">

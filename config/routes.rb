@@ -2,6 +2,7 @@ MakeDb::Application.routes.draw do
     root 'database#index'
     match '/',  to: 'database#create', via: 'post'
     match '/admin',  to: 'database#admin', via: 'get'
+    match '/admin',  to: 'database#update_settings', via: 'post'
 
   # The priority is based upon order of creation: first created -> highest priority.
   # See how all your routes lay out with "rake routes".

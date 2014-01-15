@@ -1,6 +1,6 @@
 require 'pg'
 class DatabaseController < ApplicationController
-    before_action :only_rtp, only: [:admin]
+    before_action :only_rtp, only: [:admin, :update_settings]
 
 
 
@@ -16,11 +16,30 @@ class DatabaseController < ApplicationController
         @databases = Database.paginate(page: params[:page])
         @names = get_names (Set.new @databases.collect(&:uid_number))
         @is_admin = true
+        @number_allowed = Settings.number_of_dbs
+        @is_locked = Settings.is_locked
+    end
+
+    def update_settings
+        if is_number?(params[:number_of_dbs]) || params[:Number_of_dbs].to_i > 0
+            Settings.number_of_dbs = params[:number_of_dbs].to_i
+            puts Settings.number_of_dbs 
+            puts params[:number_of_dbs].to_i
+
+        else
+            flash[:error] = "Number of databases is invalid"
+        end
+        if !params[:is_locked].nil?
+            Settings.is_locked = true
+        else
+            Settings.is_locked = false
+        end
+        flash[:success] = "Settings successfully updated"
+        redirect_to admin_path
     end
 
     def create
         p = db_params 
-        puts p
         if validate? p
             if p[:db_type] == 1
                 result = create_mysql p
@@ -30,13 +49,12 @@ class DatabaseController < ApplicationController
             if !(result.is_a? String)
                 flash[:success] = "Database and user successfully created"
                 @database.save
-                redirect_to '/'
+                redirect_to root_path
             else
                 flash[:error] = result
-                redirect_to '/'
+                redirect_to root_path
             end
         else
-            puts "FALSE"
             @is_admin = is_admin?
             render 'index'
         end
@@ -52,7 +70,7 @@ class DatabaseController < ApplicationController
         def only_rtp
             if !is_admin?
                 flash[:error] = "Go away, you're not an RTP"
-                redirect_to "/"
+                redirect_to root_path
             end
         end
         
@@ -63,9 +81,17 @@ class DatabaseController < ApplicationController
             @database = Database.new(name: p[:name], username: p[:username], 
                                  db_type: p[:db_type], 
                                  uid_number: p[:uid_number])
+            if Settings.is_locked
+                flash.now[:error] = "The Site has been locked by an RTP"
+                return false
+            end
+
+            if Database.where(uid_number: p[:uid_number]).count >= Settings.number_of_dbs
+                flash.now[:error] = "You have reached your max number of databases (#{Settings.number_of_dbs})"
+                return false
+            end
+
             valid = @database.valid?
-            puts "TEST"
-            puts p[:password].match(/^[a-zA-Z0-9]+$/)
             if p[:password].empty? || p[:confirm_password].empty?
                 @database.errors.add(:password, "cannot be empty")
                 return false

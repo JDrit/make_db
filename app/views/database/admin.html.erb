@@ -30,6 +30,16 @@
         <% end %>
     </div>
     <div class="content" id="panel2-2">
-        <p>Second panel content goes here...</p>
+        <br />
+        <%= form_tag do %>
+            <%= number_field_tag("number_of_dbs", value = @number_allowed, options = {:min=>0}) %>
+            <%= label_tag('Number_of_dbs', 'Number of databases a user can create') %>
+            <br />
+            <%= check_box_tag('is_locked', 'yes', @is_locked) %>
+            <%= label_tag('is_locked', 'Locked site?') %>
+            <br />
+            <br />
+            <%= submit_tag("Save Settings", class: "button [radius round]") %>
+        <% end %>
     </div>
 </div>

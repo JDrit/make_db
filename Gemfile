@@ -9,6 +9,7 @@ gem 'net-ldap'
 gem 'will_paginate'
 gem 'foundation-will_paginate'
 gem 'mysql2'
+gem "rails-settings-cached", "0.3.1"
 
 # Use sqlite3 as the database for Active Record
 group :development, :test do
