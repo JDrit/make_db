@@ -27,6 +27,11 @@ describe Database do
         it { should_not be_valid }
     end
 
+    describe "when password is invalid" do
+        before { @database.password = "fsd@#" }
+        it { should_not be_valid }
+    end
+
     describe "when db type is not valid" do
         before { @database.db_type = -1 }
         it { should_not be_valid }

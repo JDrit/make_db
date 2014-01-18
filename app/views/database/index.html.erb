@@ -14,8 +14,10 @@
       <br>
       <br>
       <%= f.label :db_type, "Database Type" %>
-      <%= f.radio_button :db_type, 'pg', :checked => false %> PostgreSQL
-      <%= f.radio_button :db_type, 'mysql', :checked => true %> mySQL
+      <%= f.radio_button :db_type, 'pg', :checked => false %> 
+      <%= f.label :db_type_pg, "PostgreSQL" %>
+      <%= f.radio_button :db_type, 'mysql', :checked => true %>
+      <%= f.label :db_type_mysql, "mySQL" %>
 
     </div>
     <div class="large-6 columns">
@@ -38,10 +40,10 @@
         
       <%= f.label :password_confirmation, "Confirm Password" %>
       <% if @database.errors[:password_confirmation] != [] %>
-        <%= f.password_field :password_confirmation, placeholder: "Password", class: "error" %>
+        <%= f.password_field :password_confirmation, placeholder: "Password Confirmation", class: "error" %>
         <small class="error"><%= @database.errors[:password_confirmation][0] %></small>
       <% else %>
-        <%= f.password_field :password_confirmation, placeholder: "Password" %>
+        <%= f.password_field :password_confirmation, placeholder: "Password Confirmation" %>
       <% end %>
 
     </div>

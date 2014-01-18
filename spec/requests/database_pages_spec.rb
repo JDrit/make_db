@@ -9,6 +9,77 @@ describe "DatabasePages" do
             visit root_path
         end
         it { should have_content("Make Database") }
+
+        describe "make valid SQL database" do
+            let(:count) { Database.count }
+            before do 
+                unlock_site root_path
+                create_db "mySQL" 
+            end
+
+            it { @count == Database.count + 1 }
+            it { should have_content("Database and user successfully created") }
+            system 'sh /home/jd/Documents/git/make_db/spec/clean_mysql.sh'
+        end
+        
+        describe "make database with all invalid information" do
+            let(:count) { Database.count }
+            before do
+                unlock_site root_path
+                create_db "mySQL", "qqqqqqqqqqqqqqqqqqqqqqqq", 
+                    "2fsdafds", password = "", password_cof = "q"
+                puts page.body
+            end
+            it { @count == Database.count } # a db row should not have been created
+            it { should have_content("is too long") }
+            it { should have_content("Can only be alphanumberic") }
+            it { should have_content("can't be blank") }
+            it { should have_content("doesn't match Password") }
+        end
+
+        describe "make database with database name already in use" do
+            let(:db_name) { Faker::Lorem.word }
+           
+            it do 
+                unlock_site root_path
+                create_db "mySQL", name = db_name
+                create_db "mySQL", name = db_name
+                system 'sh /home/jd/Documents/git/make_db/spec/clean_mysql.sh'
+                should have_content("The database name is already in use")
+            end
+        end
+
+        describe "make database with username already in use" do
+            let(:u_name) { Faker::Name.first_name }
+
+            it do
+                unlock_site root_path
+                fill_in "Name", with: Faker::Lorem.word
+                choose "mySQL"
+                fill_in "Username", with: u_name
+                fill_in "Password", with: "password"
+                fill_in "Confirm Password", with: "password"
+                click_button "Submit"
+                fill_in "Name", with: Faker::Lorem.word
+                choose "mySQL"
+                fill_in "Username", with: u_name
+                fill_in "Password", with: "password"
+                fill_in "Confirm Password", with: "password"
+                click_button "Submit"
+
+                should have_content("Username is already in use")
+                system 'sh /home/jd/Documents/git/make_db/spec/clean_mysql.sh'
+            end
+        end
+
+        describe "make database while site is locked" do
+
+        end
+
+        describe "make database when user has already reached their limit" do
+
+        end
+
     end
 
     describe "Admin Page" do
@@ -53,9 +124,9 @@ describe "DatabasePages" do
                 before do
                     check("is_locked")
                     click_button "Save Settings"
+                    visit root_path
                 end
-
-                it { should have_content("Settings successfully updated") }
+                it { should have_content("Site is locked") }
             end
         end
     end
