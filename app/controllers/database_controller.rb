@@ -2,9 +2,10 @@ require 'pg'
 class DatabaseController < ApplicationController
     before_action :only_rtp, only: [:admin, :update_settings]
 
-
-
     def index
+        if Settings.is_locked
+            flash[:error] = "Site is locked"
+        end
         @database = Database.new
         @is_admin = is_admin?
     end
@@ -21,20 +22,21 @@ class DatabaseController < ApplicationController
     end
 
     def update_settings
-        if is_number?(params[:number_of_dbs]) || params[:Number_of_dbs].to_i > 0
+        success = true
+        if is_number?(params[:number_of_dbs]) && params[:number_of_dbs].to_i > 0
             Settings.number_of_dbs = params[:number_of_dbs].to_i
-            puts Settings.number_of_dbs 
-            puts params[:number_of_dbs].to_i
-
         else
             flash[:error] = "Number of databases is invalid"
+            success = false
         end
         if !params[:is_locked].nil?
             Settings.is_locked = true
         else
             Settings.is_locked = false
         end
-        flash[:success] = "Settings successfully updated"
+        if success
+            flash[:success] = "Settings successfully updated"
+        end
         redirect_to admin_path
     end
 
@@ -78,11 +80,11 @@ class DatabaseController < ApplicationController
         # p = the params to validate with
         # returns true if the data is valid, false otherwise
         def validate? p
-            @database = Database.new(name: p[:name], username: p[:username], 
-                                 db_type: p[:db_type], 
-                                 uid_number: p[:uid_number])
+            @database = Database.new(name: p[:name], username: p[:username], db_type: p[:db_type],
+                                     uid_number: p[:uid_number], password: p[:password], 
+                                     password_confirmation: p[:password_confirmation])
             if Settings.is_locked
-                flash.now[:error] = "The Site has been locked by an RTP"
+                flash.now[:error] = "The Site has been locked by an RTP, no new databases can be created"
                 return false
             end
 
@@ -91,19 +93,7 @@ class DatabaseController < ApplicationController
                 return false
             end
 
-            valid = @database.valid?
-            if p[:password].empty? || p[:confirm_password].empty?
-                @database.errors.add(:password, "cannot be empty")
-                return false
-            elsif p[:password] != p[:confirm_password]
-                @database.errors.add(:passwords, " need to match")
-                return false
-            elsif p[:password].match(/^[a-zA-Z0-9]+$/) == nil
-                @database.errors.add(:password, "Can only be alphanumberic")
-                return false
-            else
-                return valid
-            end
+            return @database.valid?
         end
 
         # Connects to ldap to make sure that the given user is an RTP

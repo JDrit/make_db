@@ -36,12 +36,12 @@
         <%= f.password_field :password, placeholder: "Password" %>
       <% end %>
         
-      <%= f.label :confirm_password, "Confirm Password" %>
-      <% if @database.errors[:password] != [] %>
-        <%= f.password_field :confirm_password, placeholder: "Password", class: "error" %>
-        <small class="error"><%= @database.errors[:password][0] %></small>
+      <%= f.label :password_confirmation, "Confirm Password" %>
+      <% if @database.errors[:password_confirmation] != [] %>
+        <%= f.password_field :password_confirmation, placeholder: "Password", class: "error" %>
+        <small class="error"><%= @database.errors[:password_confirmation][0] %></small>
       <% else %>
-        <%= f.password_field :confirm_password, placeholder: "Password" %>
+        <%= f.password_field :password_confirmation, placeholder: "Password" %>
       <% end %>
 
     </div>

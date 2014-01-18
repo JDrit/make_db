@@ -22,6 +22,11 @@ describe Database do
         it { should_not be_valid }
     end
 
+    describe "when password is not present" do
+        before { @database.password = " " }
+        it { should_not be_valid }
+    end
+
     describe "when db type is not valid" do
         before { @database.db_type = -1 }
         it { should_not be_valid }
@@ -42,4 +47,19 @@ describe Database do
         it { should_not be_valid }
     end
 
+    describe "password should not be too long" do
+        before { @database.password = "a" * 42 }
+        it { should_not be_valid }
+    end
+
+    describe "first char of username cannot be a number" do
+        before { @database.username = "2fjdkl" }
+        it { should_not be_valid }
+    end
+
+    describe "first char of database name cannot be a number" do
+        before { @database.name = "2jfdkl" }
+        it { should_not be_valid }
+    end
+    
 end

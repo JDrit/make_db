@@ -20,6 +20,7 @@ group :development, :test do
     gem 'guard-spork'
     gem 'childprocess'
     gem 'faker'
+    gem 'factory_girl_rails', '4.2.0'
 end
 
 group :test do
