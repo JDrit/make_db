@@ -6,6 +6,7 @@ class DatabaseController < ApplicationController
         if Settings.is_locked
             flash[:error] = "Site is locked"
         end
+ 
         @database = Database.new
         @is_admin = is_admin?
     end
@@ -15,6 +16,7 @@ class DatabaseController < ApplicationController
             params[:page] = 1
         end
         @databases = Database.paginate(page: params[:page])
+        # the hashmap of the uid numbers to members' usernames
         @names = get_names (Set.new @databases.collect(&:uid_number))
         @is_admin = true
         @number_allowed = Settings.number_of_dbs
@@ -41,12 +43,11 @@ class DatabaseController < ApplicationController
     end
 
     def create
-        p = db_params 
-        if validate? p
-            if p[:db_type] == 1
-                result = create_mysql p
-            else
-                result = create_psql p
+        if validate? 
+            if @database.db_type == 1 # mysql
+                result = create_mysql
+            else # postgresql
+                result = create_psql
             end
             if !(result.is_a? String)
                 flash[:success] = "Database and user successfully created"
@@ -79,7 +80,18 @@ class DatabaseController < ApplicationController
         # Validates user input using the model validatators and custom validators
         # p = the params to validate with
         # returns true if the data is valid, false otherwise
-        def validate? p
+        def validate?
+            p = params.require(:database)
+            p[:uid_number] = get_uid_number('jd')
+            #p[:uid_number] = get_uid_number(response.headers['WEBAUTH_USER'])
+            if p[:db_type] == "mysql"
+                p[:db_type] = 1
+            elsif p[:db_type] == "pg"
+                p[:db_type] = 2
+            else
+                return false
+            end
+
             @database = Database.new(name: p[:name], username: p[:username], db_type: p[:db_type],
                                      uid_number: p[:uid_number], password: p[:password], 
                                      password_confirmation: p[:password_confirmation])
@@ -114,7 +126,8 @@ class DatabaseController < ApplicationController
             filter = Net::LDAP::Filter.eq("cn", "rtp")
             treebase = "ou=Groups,dc=csh,dc=rit,dc=edu"
             ldap.open do |ldap|
-                ldap.search(:base => treebase, :filter => filter, :attributes => ["member"]) do |entry|
+                ldap.search(:base => treebase, :filter => filter, 
+                            :attributes => ["member"]) do |entry|
                     entry[:member].each do |dn|
                         if dn.include? uid
                             result = true
@@ -149,7 +162,8 @@ class DatabaseController < ApplicationController
             treebase = "ou=Users,dc=csh,dc=rit,dc=edu"
             attributes = ["uidNumber", "cn"]
             ldap.open do |ldap|
-                ldap.search(:base => treebase, :filter => filter, :attributes => attributes) do  |entry|
+                ldap.search(:base => treebase, :filter => filter, 
+                            :attributes => attributes) do  |entry|
                     names[entry.uidNumber[0].to_i] = entry.cn[0]
                 end
             end
@@ -178,36 +192,20 @@ class DatabaseController < ApplicationController
             return result.uidNumber[0].to_i
         end
 
-        # returns the params of the new database
-        def db_params
-            p = params.require(:database)
-            p[:uid_number] = get_uid_number('jd')
-            #p[:uid_number] = get_uid_number(response.headers['WEBAUTH_USER'])
-            if p[:db_type] == "mysql"
-                p[:db_type] = 1
-            elsif p[:db_type] == "pg"
-                p[:db_type] = 2
-            else
-                return false
-            end
-            return p
-        end
-
         # Creates a postgreSQL database and user
-        # params = the params for the new database
         # returns true if the database and user was created successfully,
         #   an error message if there was a problem
-        def create_psql params
+        def create_psql
             return_val = true
             conn = PGconn.connect(:host => Global.db_auth.psql.host, 
                                   :user => Global.db_auth.psql.username,
                                   :password => Global.db_auth.psql.password, 
                                   :dbname => Global.db_auth.psql.dbname)
-            result = conn.exec("SELECT usename FROM pg_user WHERE usename = '#{params[:username]}'");
+            result = conn.exec("SELECT usename FROM pg_user WHERE usename = '#{@database.username}'");
             if result.ntuples != 0
                 return_val = "Username is already in use"
             end
-            result = conn.exec("SELECT datname FROM pg_database WHERE datname = '#{params[:name]}'");
+            result = conn.exec("SELECT datname FROM pg_database WHERE datname = '#{@database.name}'");
             if result.ntuples != 0
                 if return_val.is_a? String
                     return_val += " and the database name is already in use"
@@ -217,8 +215,8 @@ class DatabaseController < ApplicationController
             end
 
             if !(return_val.is_a? String)
-                conn.exec("CREATE USER #{params[:username]} WITH PASSWORD '#{params[:password]}'")
-                conn.exec("CREATE DATABASE #{params[:name]} OWNER #{params[:username]}")
+                conn.exec("CREATE USER #{@database.username} WITH PASSWORD '#{@database.password}'")
+                conn.exec("CREATE DATABASE #{@database.name} OWNER #{@database.username}")
             end
             return return_val
         end
@@ -226,19 +224,18 @@ class DatabaseController < ApplicationController
         # Creates a mySQL database for the given user
         # It checks to make sure that the username and database name have not
         # be taken and then creates both and deals with permission
-        # params = the hash of the configs for the new database
         # returns true if the database was created successfully, an error 
         # message otherwise
-        def create_mysql params
+        def create_mysql
             return_val = true
             conn = Mysql2::Client.new(:host => Global.db_auth.mysql.host,
                                        :username => Global.db_auth.mysql.username,
                                        :password => Global.db_auth.mysql.password)
-            result = conn.query("SELECT User FROM mysql.user where User = '#{params[:username]}'").to_a
+            result = conn.query("SELECT User FROM mysql.user where User = '#{@database.username}'").to_a
             if result.length != 0
                 return_val = "Username is already in use"
             end
-            result = conn.query("SHOW DATABASES like '#{params[:name]}'").to_a
+            result = conn.query("SHOW DATABASES like '#{@database.name}'").to_a
             if result.length != 0
                 if return_val.is_a? String
                     return_val += " and the database name is already in use"
@@ -248,8 +245,8 @@ class DatabaseController < ApplicationController
             end
 
             if !(return_val.is_a? String)
-                conn.query("CREATE DATABASE #{params[:name]}");
-                conn.query("GRANT ALL PRIVILEGES ON #{params[:name]}.* TO '#{params[:username]}' IDENTIFIED BY '#{params[:password]}'")
+                conn.query("CREATE DATABASE #{@database.name}");
+                conn.query("GRANT ALL PRIVILEGES ON #{@database.name}.* TO '#{@database.username}' IDENTIFIED BY '#{@database.password}'")
             end
             conn.close
             return return_val

@@ -24,17 +24,15 @@ describe "DatabasePages" do
         
         describe "make database with all invalid information" do
             let(:count) { Database.count }
-            before do
-                unlock_site root_path
-                create_db "mySQL", "qqqqqqqqqqqqqqqqqqqqqqqq", 
-                    "2fsdafds", password = "", password_cof = "q"
-                puts page.body
+            it do 
+                create_db "mySQL", name = "qqqqqqqqqqqqqqqqqqqqqqqq", 
+                    username = "2fsdafds", password = "", password_cof = "q"
+                should { @count == Database.count } # a db row should not have been created
+                should have_content("is too long (maximum is 16 characters)")
+                should have_content("Can only be alphanumeric")
+                should have_content("can't be blank") 
+                should have_content("doesn't match Password")
             end
-            it { @count == Database.count } # a db row should not have been created
-            it { should have_content("is too long") }
-            it { should have_content("Can only be alphanumberic") }
-            it { should have_content("can't be blank") }
-            it { should have_content("doesn't match Password") }
         end
 
         describe "make database with database name already in use" do
@@ -42,8 +40,19 @@ describe "DatabasePages" do
            
             it do 
                 unlock_site root_path
-                create_db "mySQL", name = db_name
-                create_db "mySQL", name = db_name
+                fill_in "Name", with: db_name
+                choose "mySQL"
+                fill_in "Username", with: Faker::Name.first_name
+                fill_in "Password", with: "password"
+                fill_in "Confirm Password", with: "password"
+                click_button "Submit"
+                fill_in "Name", with: db_name
+                choose "mySQL"
+                fill_in "Username", with: Faker::Name.first_name
+                fill_in "Password", with: "password"
+                fill_in "Confirm Password", with: "password"
+                click_button "Submit"
+
                 system 'sh /home/jd/Documents/git/make_db/spec/clean_mysql.sh'
                 should have_content("The database name is already in use")
             end
