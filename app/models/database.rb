@@ -10,7 +10,7 @@ class Database < ActiveRecord::Base
         format: { with: VALID_REGEX, 
                   message: "Can only be alphanumberic" } 
     validates :db_type, presence: true, inclusion: 1..2
-    validates :uid_number, presence: true, :numericality => { :greater_than => 0 }
+    validates :entry_uuid, presence: true
     validates :password, presence: true, length: { maximum: 41 },
         format: { with: /\A[a-z0-9]*$\z/i,
                   message: "Can only be alphanumeric" },

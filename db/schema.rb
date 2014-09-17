@@ -11,13 +11,13 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20140115190157) do
+ActiveRecord::Schema.define(version: 20140917163854) do
 
   create_table "databases", force: true do |t|
     t.string   "name"
     t.string   "username"
     t.integer  "db_type"
-    t.integer  "uid_number"
+    t.integer  "entry_uuid"
     t.datetime "created_at"
     t.datetime "updated_at"
   end

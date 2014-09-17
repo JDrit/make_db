@@ -5,7 +5,7 @@ class DatabaseController < ApplicationController
     before_action do |c| 
         @uid = request.env['WEBAUTH_USER']
         @entry_uuid = request.env['WEBAUTH_LDAP_ENTRYUUID']
-        @admin = true
+        @admin = true #TODO have this read webauth variables
     end
     before_action :only_rtp, only: [:admin, :update_settings]
 
@@ -16,7 +16,6 @@ class DatabaseController < ApplicationController
         end
  
         @database = Database.new
-        @is_admin = is_admin?
     end
 
     def admin
@@ -25,8 +24,7 @@ class DatabaseController < ApplicationController
         end
         @databases = Database.paginate(page: params[:page])
         # the hashmap of the uid numbers to members' usernames
-        @names = get_names (Set.new @databases.collect(&:uid_number))
-        @is_admin = true
+        @names = get_names (Set.new @databases.collect(&:entry_uuid))
         @number_allowed = Settings.number_of_dbs
         @is_locked = Settings.is_locked
     end
@@ -39,11 +37,7 @@ class DatabaseController < ApplicationController
             flash[:error] = "Number of databases is invalid"
             success = false
         end
-        if !params[:is_locked].nil?
-            Settings.is_locked = true
-        else
-            Settings.is_locked = false
-        end
+        Settings.is_locked = !params[:is_locked].nil?
         if success
             flash[:success] = "Settings successfully updated"
             Rails.logger.info "#{@uid} updated settings to #{params}"
@@ -67,8 +61,6 @@ class DatabaseController < ApplicationController
                 Rails.logger.error "Error trying to create database #{@database.name}, #{e}"
                 flash[:error] = "Fatal error creating database"
             end
-        else
-            @is_admin = is_admin?
         end
         redirect_to root_path
     end
@@ -93,7 +85,7 @@ class DatabaseController < ApplicationController
         # returns true if the data is valid, false otherwise
         def validate?
             p = params.require(:database)
-            p[:uid_number] = @entry_uuid
+            p[:entry_uuid] = @entry_uuid
             if p[:db_type] == "mysql"
                 p[:db_type] = 1
             elsif p[:db_type] == "pg"
@@ -103,7 +95,7 @@ class DatabaseController < ApplicationController
             end
 
             @database = Database.new(name: p[:name], username: p[:username], db_type: p[:db_type],
-                                     uid_number: p[:uid_number], password: p[:password], 
+                                     entry_uuid: p[:entry_uuid], password: p[:password], 
                                      password_confirmation: p[:password_confirmation])
             if Settings.is_locked
                 flash.now[:error] = "The Site has been locked by an RTP, no new databases can be created"
@@ -111,7 +103,7 @@ class DatabaseController < ApplicationController
                 return false
             end
 
-            if Database.where(uid_number: p[:uid_number]).count >= Settings.number_of_dbs
+            if Database.where(entry_uuid: p[:entry_uuid]).count >= Settings.number_of_dbs
                 flash.now[:error] = "You have reached your max number of databases (#{Settings.number_of_dbs})"
                 Rails.logger.info "#{@uid} tried to create another database when they have already hit the limit of #{Settings.number_of_dbs}"
                 return false
@@ -123,12 +115,12 @@ class DatabaseController < ApplicationController
         end
    
         # Gets the actual names from the list of uid numbers to display to the user
-        # uid_numbers = list of uid numbers
-        # returns a hashmap of the keys being uid_numbers and the values being their cn
-        def get_names uid_numbers
+        # entry_uuids = list of uid numbers
+        # returns a hashmap of the keys being entry_uuids and the values being their cn
+        def get_names entry_uuids
             #TODO switch to use entry uuids
             names = Hash.new
-            if uid_numbers.length == 0
+            if entry_uuids.length == 0
                 return names
             end
             ldap = Net::LDAP.new(host: Global.ldap.host, 
@@ -140,7 +132,7 @@ class DatabaseController < ApplicationController
                                     password: Global.ldap.password
                                  })
             filter = "(|"
-            uid_numbers.each { |num| filter += "(uidNumber=#{num})" }
+            entry_uuids.each { |num| filter += "(uidNumber=#{num})" }
             filter += ")"
             
             treebase = "ou=Users,dc=csh,dc=rit,dc=edu"
