@@ -1,6 +1,14 @@
 require 'pg'
+require 'net/ldap'
+
 class DatabaseController < ApplicationController
+    before_action do |c| 
+        @uid = request.env['WEBAUTH_USER']
+        @entry_uuid = request.env['WEBAUTH_LDAP_ENTRYUUID']
+        @admin = true
+    end
     before_action :only_rtp, only: [:admin, :update_settings]
+
 
     def index
         if Settings.is_locked
@@ -38,29 +46,31 @@ class DatabaseController < ApplicationController
         end
         if success
             flash[:success] = "Settings successfully updated"
+            Rails.logger.info "#{@uid} updated settings to #{params}"
+        else
+            Rails.logger.info "#{@uid} failed updating settings to #{params}"
         end
         redirect_to admin_path
     end
 
     def create
         if validate? 
-            if @database.db_type == 1 # mysql
-                result = create_mysql
-            else # postgresql
-                result = create_psql
-            end
-            if !(result.is_a? String)
-                flash[:success] = "Database and user successfully created"
-                @database.save
-                redirect_to root_path
-            else
-                flash[:error] = result
-                redirect_to root_path
+            begin
+                result = (@database.db_type == 1) ? create_mysql : create_psql
+                if result == true
+                    flash[:success] = "Database and user successfully created"
+                    @database.save
+                else
+                    flash[:error] = result
+                end
+            rescue Exception => e
+                Rails.logger.error "Error trying to create database #{@database.name}, #{e}"
+                flash[:error] = "Fatal error creating database"
             end
         else
             @is_admin = is_admin?
-            render 'index'
         end
+        redirect_to root_path
     end
 
     private
@@ -71,8 +81,9 @@ class DatabaseController < ApplicationController
     
         # Only allows RTPs to view the admin page
         def only_rtp
-            if !is_admin?
+            if !@admin
                 flash[:error] = "Go away, you're not an RTP"
+                Rails.logger.info "#{@uid} tried to access an admin page"
                 redirect_to root_path
             end
         end
@@ -82,8 +93,7 @@ class DatabaseController < ApplicationController
         # returns true if the data is valid, false otherwise
         def validate?
             p = params.require(:database)
-            p[:uid_number] = get_uid_number('jd')
-            #p[:uid_number] = get_uid_number(response.headers['WEBAUTH_USER'])
+            p[:uid_number] = @entry_uuid
             if p[:db_type] == "mysql"
                 p[:db_type] = 1
             elsif p[:db_type] == "pg"
@@ -97,64 +107,38 @@ class DatabaseController < ApplicationController
                                      password_confirmation: p[:password_confirmation])
             if Settings.is_locked
                 flash.now[:error] = "The Site has been locked by an RTP, no new databases can be created"
+                Rails.logger.info "#{@uid} tried to create a datbase while the site is locked"
                 return false
             end
 
             if Database.where(uid_number: p[:uid_number]).count >= Settings.number_of_dbs
                 flash.now[:error] = "You have reached your max number of databases (#{Settings.number_of_dbs})"
+                Rails.logger.info "#{@uid} tried to create another database when they have already hit the limit of #{Settings.number_of_dbs}"
                 return false
             end
 
-            return @database.valid?
-        end
-
-        # Connects to ldap to make sure that the given user is an RTP
-        # returns true if the user is an admin, false otherwise
-        def is_admin?
-            uid = "jeid"
-            result = false
-            #uid = response.headers['WEBAUTH_USER']
-            ldap = Net::LDAP.new :host => Global.ldap.host,
-                :port => Global.ldap.port,
-                :encryption => :simple_tls,
-                :auth => {
-                    :method => :simple,
-                    :username => Global.ldap.username,
-                    :password => Global.ldap.password
-                }
-        
-            filter = Net::LDAP::Filter.eq("cn", "rtp")
-            treebase = "ou=Groups,dc=csh,dc=rit,dc=edu"
-            ldap.open do |ldap|
-                ldap.search(:base => treebase, :filter => filter, 
-                            :attributes => ["member"]) do |entry|
-                    entry[:member].each do |dn|
-                        if dn.include? uid
-                            result = true
-                            break
-                        end
-                    end
-                end
-            end
+            result = @database.valid?
+            Rails.logger.info "#{@uid} tried creating a database that had the following errors, #{@database.errors.to_a}" if !result
             return result
         end
-    
+   
         # Gets the actual names from the list of uid numbers to display to the user
         # uid_numbers = list of uid numbers
         # returns a hashmap of the keys being uid_numbers and the values being their cn
         def get_names uid_numbers
+            #TODO switch to use entry uuids
             names = Hash.new
             if uid_numbers.length == 0
                 return names
             end
-            ldap = Net::LDAP.new :host => Global.ldap.host,
-                :port => Global.ldap.port,
-                :encryption => :simple_tls,
-                :auth => {
-                    :method => :simple,
-                    :username => Global.ldap.username,
-                    :password => Global.ldap.password
-                }
+            ldap = Net::LDAP.new(host: Global.ldap.host, 
+                                 port: Global.ldap.port,
+                                 encryption: :simple_tls,
+                                 auth: {
+                                    method: :simple,
+                                    username: Global.ldap.username,
+                                    password: Global.ldap.password
+                                 })
             filter = "(|"
             uid_numbers.each { |num| filter += "(uidNumber=#{num})" }
             filter += ")"
@@ -162,63 +146,46 @@ class DatabaseController < ApplicationController
             treebase = "ou=Users,dc=csh,dc=rit,dc=edu"
             attributes = ["uidNumber", "cn"]
             ldap.open do |ldap|
-                ldap.search(:base => treebase, :filter => filter, 
-                            :attributes => attributes) do  |entry|
+                ldap.search(base: treebase, filter: filter, attributes: attributes) do  |entry|
                     names[entry.uidNumber[0].to_i] = entry.cn[0]
                 end
             end
             return names
         end
 
-        # gets the uid number for a given user from their username
-        # uid = the user's username
-        # returns the uid number for the given user
-        def get_uid_number(uid)
-            result = nil
-            ldap = Net::LDAP.new :host => Global.ldap.host,
-                :port => Global.ldap.port,
-                :encryption => :simple_tls,
-                :auth => {
-                    :method => :simple,
-                    :username => Global.ldap.username,
-                    :password => Global.ldap.password
-                }
-            treebase = "ou=Users,dc=csh,dc=rit,dc=edu"
-            filter = Net::LDAP::Filter.eq("uid", uid)
-            ldap.open do |ldap|
-                result = ldap.search(:base => treebase, :filter => filter, 
-                                     :attributes => ["uidNumber"])[0]
-            end
-            return result.uidNumber[0].to_i
-        end
-
         # Creates a postgreSQL database and user
         # returns true if the database and user was created successfully,
         #   an error message if there was a problem
         def create_psql
-            return_val = true
-            conn = PGconn.connect(:host => Global.db_auth.psql.host, 
-                                  :user => Global.db_auth.psql.username,
-                                  :password => Global.db_auth.psql.password, 
-                                  :dbname => Global.db_auth.psql.dbname)
+            error_msg = ""
+            conn = PGconn.connect(host: Global.db_auth.psql.host, 
+                                  user: Global.db_auth.psql.username,
+                                  password: Global.db_auth.psql.password, 
+                                  dbname: Global.db_auth.psql.dbname)
             result = conn.exec("SELECT usename FROM pg_user WHERE usename = '#{@database.username}'");
             if result.ntuples != 0
-                return_val = "Username is already in use"
+                error_msg = "Username is already in use"
             end
             result = conn.exec("SELECT datname FROM pg_database WHERE datname = '#{@database.name}'");
             if result.ntuples != 0
-                if return_val.is_a? String
-                    return_val += " and the database name is already in use"
+                if error_msg != ""
+                    error_msg += " and the database name is already in use"
                 else
-                    return_val = "The database name is already in use"
+                    error_msg = "The database name is already in use"
                 end
             end
 
-            if !(return_val.is_a? String)
+            if error_msg == ""
                 conn.exec("CREATE USER #{@database.username} WITH PASSWORD '#{@database.password}'")
                 conn.exec("CREATE DATABASE #{@database.name} OWNER #{@database.username}")
+                Rails.logger.info "Created postgres database #{@database.name} for user #{@database.username}, uid: #{@uid}"
+                conn.close
+                return true
+            else
+                Rails.logger.info "Failed at creating postgres database #{@database.name} for user #{@database.username}, uid: #{@uid}, error: #{error_msg}"
+                connc.close
+                return error_msg
             end
-            return return_val
         end
 
         # Creates a mySQL database for the given user
@@ -227,28 +194,33 @@ class DatabaseController < ApplicationController
         # returns true if the database was created successfully, an error 
         # message otherwise
         def create_mysql
-            return_val = true
-            conn = Mysql2::Client.new(:host => Global.db_auth.mysql.host,
-                                       :username => Global.db_auth.mysql.username,
-                                       :password => Global.db_auth.mysql.password)
+            error_msg = ""
+            conn = Mysql2::Client.new(host: Global.db_auth.mysql.host,
+                                      username: Global.db_auth.mysql.username,
+                                      password: Global.db_auth.mysql.password)
             result = conn.query("SELECT User FROM mysql.user where User = '#{@database.username}'").to_a
             if result.length != 0
-                return_val = "Username is already in use"
+                error_msg = "Username is already in use"
             end
             result = conn.query("SHOW DATABASES like '#{@database.name}'").to_a
             if result.length != 0
-                if return_val.is_a? String
-                    return_val += " and the database name is already in use"
+                if error_msg != "" 
+                    error_msg += " and the database name is already in use"
                 else
-                    return_val = "The database name is already in use"
+                    error_msg = "The database name is already in use"
                 end
             end
 
-            if !(return_val.is_a? String)
+            if error_msg != ""
                 conn.query("CREATE DATABASE #{@database.name}");
                 conn.query("GRANT ALL PRIVILEGES ON #{@database.name}.* TO '#{@database.username}' IDENTIFIED BY '#{@database.password}'")
+                Rails.logger.info "Created mysql database #{@database.name} for user #{@database.username}, uid: #{@uid}"
+                conn.close
+                return true
+            else
+                Rails.logger.info "Failed at creating mysql database #{@database.name} for user #{@database.username}, uid: #{@uid}, error: #{error_msg}"
+                conn.close
+                return error_msg
             end
-            conn.close
-            return return_val
         end
 end

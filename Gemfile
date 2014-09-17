@@ -21,6 +21,7 @@ group :development, :test do
     gem 'childprocess'
     gem 'faker'
     gem 'factory_girl_rails', '4.2.0'
+    gem 'thin'
 end
 
 group :test do
